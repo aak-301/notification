@@ -3,9 +3,10 @@ const Coordinator = require("./coordinatorSchema");
 
 const getAvailableCoordinator = async () => {
   try {
+    // The correct way: find coordinators where current_assignments is less than max_assignments
     const coordinator = await Coordinator.findOne({
       active: true,
-      current_assignments: { $lt: "$max_assignments" },
+      $expr: { $lt: ["$current_assignments", "$max_assignments"] },
     }).sort({ current_assignments: 1 });
 
     if (!coordinator) return null;

@@ -43,7 +43,7 @@ const coordinatorSchema = new Schema({
 coordinatorSchema.statics.findAvailable = function () {
   return this.findOne({
     active: true,
-    current_assignments: { $lt: "$max_assignments" },
+    $expr: { $lt: ["$current_assignments", "$max_assignments"] },
   }).sort({ current_assignments: 1 });
 };
 
