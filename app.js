@@ -35,12 +35,43 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
 
-// Add request logging middleware
+// Increase JSON payload size limit if needed
+app.use(bodyParser.json({ limit: "5mb" }));
+app.use(bodyParser.urlencoded({ extended: true, limit: "5mb" }));
+
+// Enhanced request logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  const timestamp = new Date().toISOString();
+  const { method, url, headers, body } = req;
+
+  console.log(`[${timestamp}] Request: ${method} ${url}`);
+
+  // Log content type and forwarded headers (useful for proxy detection)
+  const loggableHeaders = {
+    "content-type": headers["content-type"],
+    "x-forwarded-for": headers["x-forwarded-for"],
+    "x-forwarded-host": headers["x-forwarded-host"],
+    "x-real-ip": headers["x-real-ip"],
+    "user-agent": headers["user-agent"],
+  };
+
+  console.log(`Headers: ${JSON.stringify(loggableHeaders)}`);
+
+  // Only log the body for non-GET requests and only if it's not too large
+  if (method !== "GET" && Object.keys(body || {}).length > 0) {
+    console.log(`Body: ${JSON.stringify(body)}`);
+  }
+
+  // Log response status
+  const originalEnd = res.end;
+  res.end = function (chunk, encoding) {
+    console.log(
+      `[${timestamp}] Response: ${method} ${url} - Status: ${res.statusCode}`
+    );
+    return originalEnd.call(this, chunk, encoding);
+  };
+
   next();
 });
 
@@ -67,9 +98,17 @@ const startServer = async () => {
       res.send("Welcome to Call Registration APIs");
     });
 
+    // Simple health check endpoint
+    app.get("/health", (req, res) => {
+      res
+        .status(200)
+        .json({ status: "OK", timestamp: new Date().toISOString() });
+    });
+
     // Error handling middleware
     app.use((err, req, res, next) => {
       console.error("Unhandled application error:", err);
+      console.error(err.stack);
       res.status(500).json({
         error: "Internal server error",
         message:
@@ -83,6 +122,8 @@ const startServer = async () => {
       console.log(
         `Test endpoint: http://localhost:${PORT}/api/users/test-register?phoneNumber=+917466XXXXXX`
       );
+      console.log(`Webhook test: http://localhost:${PORT}/webhook/test`);
+      console.log(`Health check: http://localhost:${PORT}/health`);
     });
   } catch (error) {
     console.error("Failed to start server:", error);
