@@ -105,6 +105,36 @@ const startServer = async () => {
         .json({ status: "OK", timestamp: new Date().toISOString() });
     });
 
+    // Fallback route to catch all POST requests that don't match other routes
+    app.post("*", (req, res) => {
+      console.log("=== UNHANDLED POST REQUEST ===");
+      console.log("Headers:", JSON.stringify(req.headers));
+      console.log("Body:", JSON.stringify(req.body));
+      console.log("URL:", req.originalUrl);
+      console.log("Method:", req.method);
+      console.log("=== END UNHANDLED REQUEST ===");
+
+      // If the request appears to be from Twilio, try to handle it
+      if (req.body && (req.body.CallSid || req.body.MessageSid)) {
+        console.log("Detected possible Twilio request to incorrect URL");
+
+        // Redirect internally to the correct handler
+        if (req.body.CallSid && req.body.CallStatus) {
+          console.log("Redirecting to voice webhook handler");
+          req.url = "/webhook/voice";
+          return webhookRoutes(req, res);
+        }
+      }
+
+      // Return a more helpful error message
+      res.status(404).json({
+        error: "Endpoint not found",
+        message:
+          "This endpoint does not exist. If you're trying to reach a webhook, please use /webhook/voice or /webhook/status",
+        requestedPath: req.originalUrl,
+      });
+    });
+
     // Error handling middleware
     app.use((err, req, res, next) => {
       console.error("Unhandled application error:", err);
